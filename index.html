@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bank Retention Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
+<style>
+:root{color-scheme:light;--surface-0:#f5f5f3;--surface-1:#fcfcfb;--border:#e4e3df;--text-primary:#0b0b0b;--text-secondary:#52514e;--text-muted:#7a7974;--grid:#ecebe7;--series-1:#2a78d6;--accent-bg:#e8f1fc;
+--seq-100:#cde2fb;--seq-250:#86b6ef;--seq-400:#3987e5;--seq-550:#1c5cab;--seq-700:#0d366b}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;--surface-0:#121211;--surface-1:#1a1a19;--border:#2e2e2c;--text-primary:#ffffff;--text-secondary:#c3c2b7;--text-muted:#94938b;--grid:#2a2a28;--series-1:#3987e5;--accent-bg:#1b2a3d;
+--seq-100:#0d366b;--seq-250:#184f95;--seq-400:#2a78d6;--seq-550:#5598e7;--seq-700:#b7d3f6}}
+:root[data-theme="dark"]{color-scheme:dark;--surface-0:#121211;--surface-1:#1a1a19;--border:#2e2e2c;--text-primary:#ffffff;--text-secondary:#c3c2b7;--text-muted:#94938b;--grid:#2a2a28;--series-1:#3987e5;--accent-bg:#1b2a3d;
+--seq-100:#0d366b;--seq-250:#184f95;--seq-400:#2a78d6;--seq-550:#5598e7;--seq-700:#b7d3f6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface-0);color:var(--text-primary);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+header h1{font-size:24px;margin:0 0 4px;font-weight:650}
+header p{margin:0;color:var(--text-secondary)}
+.filters{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:20px 0 16px}
+.filters label{display:flex;flex-direction:column;font-size:12px;color:var(--text-secondary);gap:4px}
+select,button{max-width:100%;font:inherit;color:var(--text-primary);background:var(--surface-1);border:1px solid var(--border);border-radius:8px;padding:6px 10px;min-width:130px}
+button{cursor:pointer;min-width:auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.kpi .label{font-size:12px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em}
+.kpi .value{font-size:30px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+.kpi .sub{font-size:13px;color:var(--text-muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:12px}
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;min-width:0}
+.card h2{font-size:15px;margin:0 0 2px;font-weight:600}
+.card p{margin:0 0 6px;font-size:13px;color:var(--text-secondary)}
+.chart{height:260px}
+.wide{grid-column:1/-1}
+.tablewrap{overflow-x:auto}
+html,body{overflow-x:hidden}
+.insight{background:var(--accent-bg);border-radius:12px;padding:14px 16px;margin-top:12px;font-size:14px}
+.insight b{font-weight:650}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)}
+th{color:var(--text-secondary);font-weight:600}
+td.num,th.num{text-align:right}
+footer{margin-top:24px;font-size:12px;color:var(--text-muted)}
+footer a{color:var(--text-secondary)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Bank Customer Retention Dashboard</h1>
+  <p>Who is leaving, how much money leaves with them, and where the retention team should focus. 10,000 retail bank customers.</p>
+</header>
+
+<div class="filters">
+  <label>Country<select id="f-country"><option value="">All</option><option>France</option><option>Germany</option><option>Spain</option></select></label>
+  <label>Gender<select id="f-gender"><option value="">All</option><option>Female</option><option>Male</option></select></label>
+  <label>Member status<select id="f-active"><option value="">All</option><option value="1">Active</option><option value="0">Inactive</option></select></label>
+  <button id="reset">Reset filters</button>
+  <button id="theme" title="Toggle light/dark">Toggle theme</button>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="label">Customers</div><div class="value" id="k-cust">–</div><div class="sub">in current selection</div></div>
+  <div class="kpi"><div class="label">Churn rate</div><div class="value" id="k-rate">–</div><div class="sub" id="k-rate-sub">customers who left</div></div>
+  <div class="kpi"><div class="label">Balance lost</div><div class="value" id="k-bal">–</div><div class="sub">held by churned customers</div></div>
+  <div class="kpi"><div class="label">High-risk flag</div><div class="value" id="k-risk">–</div><div class="sub" id="k-risk-sub">of churn from flagged customers</div></div>
+</div>
+
+<div class="grid">
+  <div class="card"><h2>Churn rate by age band</h2><p>Risk climbs sharply after 40 and peaks at 50–59.</p><div class="chart" id="c-age"></div></div>
+  <div class="card"><h2>Churn rate by number of products</h2><p>Two products is the sweet spot; 3+ almost always leave.</p><div class="chart" id="c-prod"></div></div>
+  <div class="card"><h2>Churn rate by country</h2><p>Germany churns at about twice the rate of France and Spain.</p><div class="chart" id="c-country"></div></div>
+  <div class="card"><h2>Balance lost by country ($M)</h2><p>Where the money walks out the door.</p><div class="chart" id="c-bal"></div></div>
+  <div class="card wide"><h2>Churn rate heatmap: country × age band</h2><p>Shade intensity follows churn rate (see scale). Hover for counts.</p><div class="chart" id="c-heat" style="height:240px"></div></div>
+  <div class="card wide"><h2>Top risk segments (table view)</h2><p>Country × age band segments with at least 50 customers in the current selection, ranked by churn rate.</p><div class="tablewrap" id="t-seg"></div></div>
+</div>
+
+<div class="insight" id="insight"></div>
+
+<footer>Data: public "Bank Customer Churn" dataset (10,000 customers). High-risk flag = (age 45–65 and inactive) or 3+ products. Built by Shanmukha Sai Reddy Bhimireddy · <a href="https://github.com/shanmukha-bhimireddy/bank-retention-dashboard">source on GitHub</a></footer>
+</div>
+
+<script>
+let D, N;
+const AGE_BANDS = ["18-29","30-39","40-49","50-59","60+"];
+const COUNTRIES = ["France","Germany","Spain"];
+const band = a => a<30?"18-29":a<40?"30-39":a<50?"40-49":a<60?"50-59":"60+";
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmtPct = x => isFinite(x) ? (100*x).toFixed(1)+"%" : "–";
+const fmtM = x => "$"+(x/1e6).toFixed(1)+"M";
+
+function selected(){
+  const c=document.getElementById("f-country").value, g=document.getElementById("f-gender").value, a=document.getElementById("f-active").value;
+  const idx=[];
+  for(let i=0;i<N;i++){
+    if(c && D.country[i]!==c) continue;
+    if(g && D.gender[i]!==g) continue;
+    if(a!=="" && String(D.active[i])!==a) continue;
+    idx.push(i);
+  }
+  return idx;
+}
+function groupRate(idx,keyFn,keys){
+  const n={},ch={},bal={};
+  keys.forEach(k=>{n[k]=0;ch[k]=0;bal[k]=0});
+  idx.forEach(i=>{const k=keyFn(i); if(!(k in n)) return; n[k]++; ch[k]+=D.churned[i]; bal[k]+=D.churned[i]*D.balance[i];});
+  return keys.map(k=>({key:k,n:n[k],churned:ch[k],rate:n[k]?ch[k]/n[k]:NaN,bal:bal[k]}));
+}
+function layout(yTitle,isPct){
+  return {margin:{l:52,r:12,t:8,b:36},paper_bgcolor:"rgba(0,0,0,0)",plot_bgcolor:"rgba(0,0,0,0)",
+    font:{family:"system-ui,-apple-system,Segoe UI,Roboto,sans-serif",size:12,color:css("--text-secondary")},
+    xaxis:{type:"category",showgrid:false,linecolor:css("--border"),tickfont:{color:css("--text-secondary")}},
+    yaxis:{title:{text:yTitle,font:{size:12}},gridcolor:css("--grid"),zeroline:false,rangemode:"tozero",tickformat:isPct?".0%":undefined},
+    bargap:0.45,hoverlabel:{bgcolor:css("--surface-1"),bordercolor:css("--border"),font:{color:css("--text-primary")}},showlegend:false};
+}
+const cfg={displayModeBar:false,responsive:true};
+function bar(el,rows,{valueKey="rate",isPct=true,yTitle="Churn rate",labelFn}={}){
+  const y=rows.map(r=>r[valueKey]);
+  Plotly.react(el,[{type:"bar",x:rows.map(r=>r.key),y,marker:{color:css("--series-1"),cornerradius:4},
+    text:y.map(v=>labelFn?labelFn(v):(isPct?fmtPct(v):v)),textposition:"outside",cliponaxis:false,
+    textfont:{color:css("--text-primary"),size:12},
+    customdata:rows.map(r=>[r.n,r.churned]),
+    hovertemplate:"<b>%{x}</b><br>"+(isPct?"Churn rate: %{y:.1%}":"Balance lost: $%{y:.1f}M")+"<br>Customers: %{customdata[0]:,}<br>Churned: %{customdata[1]:,}<extra></extra>"}],
+    layout(yTitle,isPct),cfg);
+}
+function render(){
+  const idx=selected();
+  const n=idx.length; let ch=0,bal=0,riskN=0,riskCh=0;
+  idx.forEach(i=>{ch+=D.churned[i]; bal+=D.churned[i]*D.balance[i];
+    const risk=(D.age[i]>=45&&D.age[i]<=65&&!D.active[i])||D.products[i]>=3;
+    if(risk){riskN++; riskCh+=D.churned[i];}});
+  document.getElementById("k-cust").textContent=n.toLocaleString();
+  document.getElementById("k-rate").textContent=fmtPct(ch/n);
+  document.getElementById("k-rate-sub").textContent=ch.toLocaleString()+" customers left";
+  document.getElementById("k-bal").textContent=fmtM(bal);
+  document.getElementById("k-risk").textContent=ch?fmtPct(riskCh/ch):"–";
+  document.getElementById("k-risk-sub").textContent="of churn comes from "+(n?fmtPct(riskN/n):"–")+" of customers";
+
+  bar("c-age",groupRate(idx,i=>band(D.age[i]),AGE_BANDS));
+  bar("c-prod",groupRate(idx,i=>String(D.products[i]),["1","2","3","4"]).map(r=>({...r,key:r.key+(r.key==="1"?" product":" products")})));
+  bar("c-country",groupRate(idx,i=>D.country[i],COUNTRIES));
+  bar("c-bal",groupRate(idx,i=>D.country[i],COUNTRIES).map(r=>({...r,balM:r.bal/1e6})),{valueKey:"balM",isPct:false,yTitle:"Balance lost ($M)",labelFn:v=>"$"+v.toFixed(1)+"M"});
+
+  // heatmap
+  const z=[],txt=[],cd=[];
+  COUNTRIES.forEach(c=>{const rows=groupRate(idx.filter(i=>D.country[i]===c),i=>band(D.age[i]),AGE_BANDS);
+    z.push(rows.map(r=>r.n?r.rate:null)); txt.push(rows.map(r=>r.n?fmtPct(r.rate):"")); cd.push(rows.map(r=>[r.n,r.churned]));});
+  const scale=[[0,css("--seq-100")],[0.35,css("--seq-250")],[0.6,css("--seq-400")],[0.8,css("--seq-550")],[1,css("--seq-700")]];
+  const L=layout("",true); L.yaxis={type:"category",autorange:"reversed",tickfont:{color:css("--text-secondary")}}; L.margin.l=70;
+  Plotly.react("c-heat",[{type:"heatmap",x:AGE_BANDS,y:COUNTRIES,z,zmin:0,zmax:0.75,colorscale:scale,xgap:2,ygap:2,
+    text:txt,texttemplate:"%{text}",textfont:{size:12},customdata:cd,
+    colorbar:{tickformat:".0%",thickness:10,outlinewidth:0,tickfont:{color:css("--text-secondary")}},
+    hovertemplate:"<b>%{y}, %{x}</b><br>Churn rate: %{z:.1%}<br>Customers: %{customdata[0]:,}<br>Churned: %{customdata[1]:,}<extra></extra>"}],L,cfg);
+
+  // table
+  const segs=[];
+  COUNTRIES.forEach(c=>groupRate(idx.filter(i=>D.country[i]===c),i=>band(D.age[i]),AGE_BANDS).forEach(r=>{if(r.n>=50) segs.push({c,...r});}));
+  segs.sort((a,b)=>b.rate-a.rate);
+  document.getElementById("t-seg").innerHTML="<table><thead><tr><th>Rank</th><th>Country</th><th>Age band</th><th class='num'>Customers</th><th class='num'>Churned</th><th class='num'>Churn rate</th><th class='num'>Balance lost</th></tr></thead><tbody>"+
+    segs.slice(0,6).map((s,k)=>`<tr><td>${k+1}</td><td>${s.c}</td><td>${s.key}</td><td class='num'>${s.n.toLocaleString()}</td><td class='num'>${s.churned.toLocaleString()}</td><td class='num'>${fmtPct(s.rate)}</td><td class='num'>${fmtM(s.bal)}</td></tr>`).join("")+"</tbody></table>";
+
+  const top=segs[0];
+  document.getElementById("insight").innerHTML = n ? `<b>What to do:</b> In this selection, ${fmtPct(ch/n)} of customers left, taking ${fmtM(bal)} in balances. `+
+    (top?`The riskiest segment is <b>${top.c}, age ${top.key}</b> (${fmtPct(top.rate)} churn). `:"")+
+    `Customers matching the high-risk rule make up ${fmtPct(riskN/n)} of the base but ${ch?fmtPct(riskCh/ch):"–"} of churn — a focused retention call list.` : "No customers match these filters.";
+}
+["f-country","f-gender","f-active"].forEach(id=>document.getElementById(id).addEventListener("change",render));
+document.getElementById("reset").addEventListener("click",()=>{["f-country","f-gender","f-active"].forEach(id=>document.getElementById(id).value="");render();});
+document.getElementById("theme").addEventListener("click",()=>{
+  const r=document.documentElement; const dark=r.dataset.theme?r.dataset.theme==="dark":matchMedia("(prefers-color-scheme: dark)").matches;
+  r.dataset.theme=dark?"light":"dark"; render();});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>D&&render());
+async function load(){
+  const txt = await (await fetch("data/Churn_Modelling.csv")).text();
+  const rows = txt.trim().split(/\r?\n/); const h = rows.shift().split(",");
+  const col = n => h.indexOf(n);
+  D = {country:[],gender:[],age:[],products:[],active:[],balance:[],churned:[]};
+  for (const r of rows){ const c=r.split(",");
+    D.country.push(c[col("Geography")]); D.gender.push(c[col("Gender")]); D.age.push(+c[col("Age")]);
+    D.products.push(+c[col("NumOfProducts")]); D.active.push(+c[col("IsActiveMember")]);
+    D.balance.push(Math.round(+c[col("Balance")])); D.churned.push(+c[col("Exited")]); }
+  N = D.churned.length; render();
+}
+load().catch(e=>{document.getElementById("insight").textContent="Could not load data/Churn_Modelling.csv. Serve this folder over HTTP (e.g. python -m http.server) or open the live GitHub Pages link.";console.error(e);});
+
+</script>
+</body>
+</html>
